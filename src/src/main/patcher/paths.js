@@ -8,8 +8,17 @@ const path = require('path');
 const PATCHER_DIR = '.patcher';
 
 // Things in the game folder that belong to the player, not to a release. The
-// patcher never manages, overwrites or deletes them.
-const PROTECTED = ['logs', 'screenshots', 'useropt.json', PATCHER_DIR];
+// patcher never manages, overwrites or deletes them. (errorCode is where the
+// game notes how its last run ended: otp/launcher/LauncherBase.py.) Lower
+// case: names are compared that way.
+const PROTECTED = ['logs', 'screenshots', 'useropt.json', 'settings.ini', 'errorcode', PATCHER_DIR];
+
+// Folders in the game folder that hold only the game's own files (bin:
+// Python's and Panda3D's libraries and the compiled game, see
+// tools/build_game_exe.py), never the player's. The patcher deletes anything
+// in them that the release doesn't list: what earlier releases left there
+// (the game's source from before it was compiled, say), whoever put it there.
+const GAME_FOLDERS = ['bin'];
 
 // What the installer (installer/ToonValley.nsi) and the launcher's
 // self-update (selfupdate.js) keep in the game folder on Windows, next to
@@ -82,4 +91,4 @@ function safeResolve(root, rel) {
   return full;
 }
 
-module.exports = { PATCHER_DIR, PROTECTED, LAUNCHER_FILES, PathError, checkRelativePath, validateRelativePath, safeResolve };
+module.exports = { PATCHER_DIR, PROTECTED, GAME_FOLDERS, LAUNCHER_FILES, PathError, checkRelativePath, validateRelativePath, safeResolve };

@@ -4,6 +4,18 @@
 // published with win32\build_launcher.bat <version>.
 const CHANGELOG = [
   {
+    version: '2.2.2',
+    items: [
+      "Updates clear out the game's bin folder: files earlier versions left there, and anything else that isn't part of the game, are removed.",
+    ],
+  },
+  {
+    version: '2.2.1',
+    items: [
+      'The installer asks where to install Toon Valley, so it can go on another drive. Already installed? Run the installer again and pick a new folder: it moves the game there, and nothing downloads again.',
+    ],
+  },
+  {
     version: '2.2.0',
     items: [
       "When Toon Valley is full, Play puts you in line: the launcher shows your place and starts the game by itself when it's your turn. Leave line takes you out.",

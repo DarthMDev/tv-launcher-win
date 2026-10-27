@@ -36,14 +36,13 @@ function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
 }
 
-// Where the patcher installs the game when updates are on. On Windows that
-// is the folder the installer puts Launcher.exe in, so the game lives next
-// to it, as with TTR (per user, so updates need no administrator).
+// Where the patcher installs the game when updates are on: next to the
+// installed Launcher.exe, in the folder the player picked (game.installDir).
 function defaultInstallDir() {
-  if (process.platform === 'win32') {
-    return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Programs', 'Toon Valley');
-  }
-  return path.join(app.getPath('userData'), 'Game');
+  return game.installDir({
+    exePath: portableExePath(), localAppData: process.env.LOCALAPPDATA, appData: app.getPath('appData'),
+    userData: app.getPath('userData'),
+  });
 }
 
 // The copy of the game bundled with the full installer, if any. The patcher
@@ -465,10 +464,18 @@ function registerIpc() {
         if (event.type === 'running' && win) win.minimize();
         if (event.type === 'exited' || event.type === 'error') {
           gameProcess = null;
-          if (quitWhenGameExits) app.quit();
-          else if (win && win.isMinimized()) win.restore();
+          if (quitWhenGameExits) {
+            // (Logged out now the game no longer needs the login, as the
+            // window's closing did before.)
+            auth && auth.logout();
+            app.quit();
+          } else if (win && win.isMinimized()) win.restore();
         }
         send('game:event', event);
+      }, undefined, {
+        // The game logs in again after a district reset with a new play
+        // token, got as Play gets one: in line while Toon Valley is full.
+        newLine: (onUpdate) => new Line({ auth, onUpdate }),
       });
       return { ok: true };
     } catch (err) {
@@ -597,13 +604,14 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
-  auth && auth.logout();
   if (patcher) patcher.cancel();
   // The game's output comes through a pipe to the launcher, so quitting now
-  // could crash it: stay in the background until the game exits.
+  // could crash it: stay in the background until the game exits, still
+  // logged in, for the game to log in again with after a district reset.
   if (gameProcess) {
     quitWhenGameExits = true;
     return;
   }
+  auth && auth.logout();
   if (process.platform !== 'darwin') app.quit();
 });

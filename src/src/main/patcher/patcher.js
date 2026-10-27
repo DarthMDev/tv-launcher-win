@@ -16,8 +16,9 @@
 // time, so a normal start only re-hashes files whose size or time changed.
 // Repair (update({ repair: true })) re-hashes everything.
 //
-// Only files a manifest lists are ever written or deleted. Player data (logs,
-// screenshots, game settings) can't be listed, see paths.js.
+// Only files a manifest lists are ever written or deleted, and anything in
+// the game's own folders (bin) that the release doesn't have. Player data
+// (logs, screenshots, game settings) can't be listed, see paths.js.
 //
 // A manifest older than one already seen from the same address is refused
 // (rollback.js); releaseFile is where that is remembered between starts.
@@ -30,7 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const { EventEmitter } = require('events');
 
-const { PATCHER_DIR, LAUNCHER_FILES, PathError, checkRelativePath, safeResolve } = require('./paths');
+const { PATCHER_DIR, GAME_FOLDERS, LAUNCHER_FILES, PathError, checkRelativePath, safeResolve } = require('./paths');
 const { ManifestError, parseManifest, verifySignature, fileUrls, updateOrigins } = require('./manifest');
 const { ReleaseHistory, RollbackError } = require('./rollback');
 const { DownloadError, fetchBytes, downloadFile, hashFile, describe } = require('./download');
@@ -87,6 +88,18 @@ function lstat(file) {
     return fs.lstatSync(file);
   } catch {
     return null;
+  }
+}
+
+// Deletes a file, read-only or not (Windows refuses to delete a read-only
+// one, as a file copied from somewhere else can be).
+function unlinkFile(file) {
+  try {
+    fs.unlinkSync(file);
+  } catch (err) {
+    if (err.code !== 'EPERM' && err.code !== 'EACCES') throw err;
+    fs.chmodSync(file, 0o666);
+    fs.unlinkSync(file);
   }
 }
 
@@ -254,12 +267,16 @@ class Patcher extends EventEmitter {
     }
 
     // Files to delete: ones this patcher installed that the release no longer
-    // has, and ones the manifest says were removed. Never anything else.
+    // has, ones the manifest says were removed, and anything else in the
+    // game's own folders (GAME_FOLDERS). Never anything else.
     const listed = new Set(manifest.files.map((entry) => entry.path.toLowerCase()));
-    const candidates = new Set([...Object.keys((state && state.files) || {}), ...manifest.removed]);
+    const candidates = new Set([...Object.keys((state && state.files) || {}), ...manifest.removed, ...this.gameFolderFiles()]);
     const toDelete = [];
+    const seen = new Set();
     for (const rel of candidates) {
-      if (listed.has(rel.toLowerCase()) || LAUNCHER_FILES.includes(rel.toLowerCase())) continue;
+      const key = rel.toLowerCase();
+      if (listed.has(key) || LAUNCHER_FILES.includes(key) || seen.has(key)) continue;
+      seen.add(key);
       let target;
       try {
         target = safeResolve(this.installDir, rel);
@@ -270,6 +287,31 @@ class Patcher extends EventEmitter {
       if (st && st.isFile()) toDelete.push(rel);
     }
     return { state, interrupted, needed, toDelete, present };
+  }
+
+  // Every file in the game's own folders (GAME_FOLDERS), as manifest paths.
+  // Links aren't followed.
+  gameFolderFiles() {
+    const files = [];
+    const walk = (dir, prefix) => {
+      let entries;
+      try {
+        entries = fs.readdirSync(dir, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const entry of entries) {
+        const rel = `${prefix}/${entry.name}`;
+        if (entry.isDirectory()) walk(path.join(dir, entry.name), rel);
+        else if (entry.isFile()) files.push(rel);
+      }
+    };
+    for (const folder of GAME_FOLDERS) {
+      const dir = path.join(this.installDir, folder);
+      const st = lstat(dir);
+      if (st && st.isDirectory()) walk(dir, folder);
+    }
+    return files;
   }
 
   summarize(manifest, scanned) {
@@ -534,7 +576,7 @@ class Patcher extends EventEmitter {
     for (const rel of toDelete) {
       const target = safeResolve(this.installDir, rel);
       try {
-        fs.unlinkSync(target);
+        unlinkFile(target);
       } catch (err) {
         if (err.code !== 'ENOENT') {
           throw new PatchError('replace-failed', `Couldn't remove the old file ${rel}. Close the game and try again.`, true);

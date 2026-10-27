@@ -1,11 +1,13 @@
 // Finds the game client and starts it from the game folder, with GAME_SERVER
-// and LOGIN_TOKEN in the environment (read by toontown/launcher/QuickLauncher.py):
+// and LOGIN_TOKEN in the environment (read by toontown/launcher/QuickLauncher.py),
+// and gives it another play token when it asks (PlayTokenRequests):
 // ToonValley.exe in a player's game folder (tools/build_game_exe.py), or, in
 // a checkout, `<python> -m toontown.launcher.QuickStartLauncher` the way
 // win32/start_game.bat and linux/start-game.sh do.
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { RETRYABLE } = require('./line');
 
 // Files the client needs; their absence means the game folder is wrong or
 // incomplete.
@@ -28,19 +30,32 @@ class GameError extends Error {
   }
 }
 
-function defaultGameDir({ packaged, appPath, execPath, resourcesPath }) {
+function defaultGameDir({ packaged, appPath, execPath, resourcesPath, platform = process.platform }) {
   // From source the launcher lives in <game>/launcher. A packaged launcher
   // either carries the game itself (the full installer puts it in
   // resources/game, see tools/make_client_bundle.py) or is installed inside
-  // (or next to) the game folder.
+  // (or next to) the game folder: a built game (ToonValley.exe and its
+  // phase files) or a checkout.
   if (!packaged) return path.resolve(appPath, '..');
   const exeDir = path.dirname(execPath);
   const candidates = [exeDir, path.dirname(exeDir), path.resolve(exeDir, '..', '..')];
   if (resourcesPath) candidates.unshift(path.join(resourcesPath, 'game'));
   for (const candidate of candidates) {
+    if (gameExe(candidate, platform) && fs.existsSync(path.join(candidate, EXE_REQUIRED_FILES[0][0]))) return candidate;
     if (fs.existsSync(path.join(candidate, REQUIRED_FILES[0][0]))) return candidate;
   }
   return exeDir;
+}
+
+// Where the patcher installs the game when updates are on. On Windows, the
+// folder the installer put Launcher.exe in (exePath, the player's pick; it
+// has uninstall.exe beside it), so the game lives next to the launcher, as
+// with TTR; a Launcher.exe run from anywhere else (Downloads, say) uses the
+// installer's usual folder. Elsewhere, Game in the launcher's own folder.
+function installDir({ platform = process.platform, exePath, localAppData, appData, userData, exists = fs.existsSync }) {
+  if (platform !== 'win32') return path.join(userData, 'Game');
+  if (exePath && exists(path.join(path.dirname(exePath), 'uninstall.exe'))) return path.dirname(exePath);
+  return path.join(localAppData || appData, 'Programs', 'Toon Valley');
 }
 
 // The built game's executable in gameDir, or null for a checkout.
@@ -107,12 +122,14 @@ function findGameProgram(gameDir, pythonOverride, platform = process.platform) {
 }
 
 // Builds the command without a shell: arguments are passed as a list and
-// the login token only travels in the child's environment. program comes
-// from findGameProgram; python alone means `<python> -m ...`. gameVersion,
-// the installed release, is shown in the game's corner (ToontownStart).
+// the login token only travels in the child's environment (later ones on
+// its input). program comes from findGameProgram; python alone means
+// `<python> -m ...`. gameVersion, the installed release, is shown in the
+// game's corner (ToontownStart).
 function buildLaunch({ gameDir, program, python, host, port, playToken, gameVersion, baseEnv = process.env }) {
   // PYTHONUNBUFFERED lets the launcher follow the client's progress.
-  const env = { ...baseEnv, GAME_SERVER: `${host}:${port}`, LOGIN_TOKEN: playToken, PYTHONUNBUFFERED: '1' };
+  // LOGIN_TOKEN_PIPE: the game may ask for another play token.
+  const env = { ...baseEnv, GAME_SERVER: `${host}:${port}`, LOGIN_TOKEN: playToken, LOGIN_TOKEN_PIPE: '1', PYTHONUNBUFFERED: '1' };
   if (gameVersion) env.GAME_VERSION = gameVersion;
   else delete env.GAME_VERSION;
   // Never hand the launcher's own overrides or secrets to the client.
@@ -121,13 +138,81 @@ function buildLaunch({ gameDir, program, python, host, port, playToken, gameVers
   return {
     command: program ? program.command : python,
     args: program ? program.args : ['-m', 'toontown.launcher.QuickStartLauncher'],
-    options: { cwd: gameDir, env, shell: false, windowsHide: false, stdio: ['ignore', 'pipe', 'pipe'] },
+    options: { cwd: gameDir, env, shell: false, windowsHide: false, stdio: ['pipe', 'pipe', 'pipe'] },
   };
 }
 
+// The game asks for another play token to log in again with, after a
+// district reset or a lost connection (a play token works for one login;
+// toontown/launcher/LauncherPipe.py), with a line "@launcher play-token <n>"
+// on its output, and "@launcher leave-line <n>" if the player gives up
+// waiting. The launcher answers request n on the game's input with a line of
+// JSON: {"request": n, "token": "..."}, {"request": n, "waiting":
+// {"position": 3}} while in line (then more), or {"request": n, "error":
+// "...", "code": "...", "retryable": true}.
+const GAME_REQUEST = /^@launcher (play-token|leave-line) ([0-9]{1,9})\r?$/;
+
+// Gets the game its play tokens, as Play does: newLine(onUpdate) makes a
+// Line (line.js) to wait for the player's turn in. One at a time: asking
+// again while one is on its way takes over its answer (and place in line).
+class PlayTokenRequests {
+  constructor({ write, newLine, onToken = () => {} }) {
+    this.write = write;
+    this.newLine = newLine;
+    this.onToken = onToken;
+    this.request = null;
+    this.line = null;
+  }
+
+  handle(text) {
+    const match = GAME_REQUEST.exec(text);
+    if (!match) return false;
+    const id = Number(match[2]);
+    if (match[1] === 'leave-line') {
+      if (this.line && id === this.request) this.line.leave();
+      return true;
+    }
+    const busy = this.request !== null;
+    this.request = id;
+    if (!busy) this.get();
+    return true;
+  }
+
+  async get() {
+    let answer;
+    try {
+      if (!this.newLine) throw Object.assign(new Error("The launcher can't get the game a play token."), { code: 'not-available' });
+      this.line = this.newLine((update) => {
+        if (update && update.position) this.answer({ waiting: { position: update.position } });
+      });
+      const token = await this.line.waitForTurn();
+      if (token) this.onToken(token);
+      answer = token ? { token } : { error: 'You left the line.', code: 'left-line', retryable: true };
+    } catch (err) {
+      answer = err.code
+        ? { error: err.message, code: err.code, retryable: RETRYABLE.has(err.code) }
+        : { error: 'Something went wrong. Please try again.', code: 'unexpected', retryable: true };
+    }
+    this.line = null;
+    this.answer(answer);
+    this.request = null;
+  }
+
+  answer(fields) {
+    this.write(`${JSON.stringify({ request: this.request, ...fields })}\n`);
+  }
+
+  // The game has closed: out of the line.
+  stop() {
+    if (this.line) this.line.leave();
+  }
+}
+
 // Starts the client. onEvent receives { type: 'started' | 'running' | 'exited' | 'error', ... }.
-function launchGame(launch, onEvent, spawnFn = spawn) {
-  const secret = launch.options.env.LOGIN_TOKEN;
+// newLine: for the game's play token requests (PlayTokenRequests).
+function launchGame(launch, onEvent, spawnFn = spawn, { newLine = null } = {}) {
+  // The login tokens the game has been given, kept out of its captured output.
+  const secrets = [launch.options.env.LOGIN_TOKEN];
   let child;
   try {
     child = spawnFn(launch.command, launch.args, launch.options);
@@ -137,12 +222,27 @@ function launchGame(launch, onEvent, spawnFn = spawn) {
   let settled = false;
   let tail = '';
   const remember = (chunk) => {
-    // Keep the end of the output for error reports, without the login token
+    // Keep the end of the output for error reports, without the login tokens
     // (the client logs the account name it logs in with).
-    tail = redact(tail + chunk.toString(), secret).slice(-4000);
+    tail = redact(tail + chunk.toString(), secrets).slice(-4000);
   };
   child.stdout && child.stdout.on('data', remember);
   child.stderr && child.stderr.on('data', remember);
+  const requests = new PlayTokenRequests({
+    newLine,
+    onToken: (token) => secrets.push(token),
+    write: (text) => {
+      if (child.stdin && child.stdin.writable) child.stdin.write(text);
+    },
+  });
+  // (Writing to a game that has just closed fails; nothing is waiting then.)
+  child.stdin && child.stdin.on('error', () => {});
+  let partial = '';
+  child.stdout && child.stdout.on('data', (chunk) => {
+    const lines = (partial + chunk.toString()).split('\n');
+    partial = lines.pop().slice(-1000);
+    for (const line of lines) requests.handle(line);
+  });
   child.once('spawn', () => {
     onEvent({ type: 'started', pid: child.pid });
     // ToontownStart prints this once it starts the game itself (its detailed
@@ -159,13 +259,18 @@ function launchGame(launch, onEvent, spawnFn = spawn) {
     onEvent({ type: 'error', message: `The game could not be started (${err.code || 'error'}).` });
   });
   child.once('exit', (code, signal) => {
+    requests.stop();
     onEvent({ type: 'exited', code, signal, output: summarizeOutput(tail) });
   });
   return child;
 }
 
-function redact(text, secret) {
-  return secret ? text.split(secret).join('[token]') : text;
+// secrets: one, or a list.
+function redact(text, secrets) {
+  for (const secret of [].concat(secrets)) {
+    if (secret) text = text.split(secret).join('[token]');
+  }
+  return text;
 }
 
 // Picks the useful lines out of the client's last output for an error
@@ -195,6 +300,6 @@ function hideCodeFolders(gameDir, platform = process.platform, run = require('ch
 }
 
 module.exports = {
-  REQUIRED_FILES, GameError, defaultGameDir, gameExe, checkGameFiles, findPython, findGameProgram, buildLaunch, launchGame,
-  summarizeOutput, redact, hideCodeFolders,
+  REQUIRED_FILES, GameError, defaultGameDir, installDir, gameExe, checkGameFiles, findPython, findGameProgram, buildLaunch, launchGame,
+  PlayTokenRequests, summarizeOutput, redact, hideCodeFolders,
 };

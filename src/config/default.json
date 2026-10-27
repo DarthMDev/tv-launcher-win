@@ -15,27 +15,10 @@
     "publicKey": "MCowBQYDK2VwAyEAtMrAi9W4Bw5p6Z/HRKajbx3hYin+E12pCDAmqyWxZ5s="
   },
   "links": [
-    {
-      "label": "Website",
-      "url": "https://toonvalley.net",
-      "place": "text"
-    },
-    {
-      "label": "Sign Up",
-      "url": "https://toonvalley.net/signup",
-      "place": "text"
-    },
-    {
-      "label": "Report an Issue",
-      "url": "mailto:support@toonvalley.net",
-      "place": "text"
-    },
-    {
-      "label": "Discord",
-      "url": "https://discord.gg/6DwaVpTzgc",
-      "place": "icon",
-      "icon": "discord"
-    }
+    { "label": "Website", "url": "https://toonvalley.net", "place": "text" },
+    { "label": "Sign Up", "url": "https://toonvalley.net/signup", "place": "text" },
+    { "label": "Report an Issue", "url": "mailto:support@toonvalley.net", "place": "text" },
+    { "label": "Discord", "url": "https://discord.gg/6DwaVpTzgc", "place": "icon", "icon": "discord" }
   ],
   "news": [
     {
