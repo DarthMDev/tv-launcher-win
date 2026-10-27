@@ -36,13 +36,14 @@ function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send(channel, payload);
 }
 
-// Where the patcher installs the game when updates are on: next to the
-// installed Launcher.exe, in the folder the player picked (game.installDir).
+// Where the patcher installs the game when updates are on. On Windows that
+// is the folder the installer puts Launcher.exe in, so the game lives next
+// to it, as with TTR (per user, so updates need no administrator).
 function defaultInstallDir() {
-  return game.installDir({
-    exePath: portableExePath(), localAppData: process.env.LOCALAPPDATA, appData: app.getPath('appData'),
-    userData: app.getPath('userData'),
-  });
+  if (process.platform === 'win32') {
+    return path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Programs', 'Toon Valley');
+  }
+  return path.join(app.getPath('userData'), 'Game');
 }
 
 // The copy of the game bundled with the full installer, if any. The patcher
@@ -464,18 +465,10 @@ function registerIpc() {
         if (event.type === 'running' && win) win.minimize();
         if (event.type === 'exited' || event.type === 'error') {
           gameProcess = null;
-          if (quitWhenGameExits) {
-            // (Logged out now the game no longer needs the login, as the
-            // window's closing did before.)
-            auth && auth.logout();
-            app.quit();
-          } else if (win && win.isMinimized()) win.restore();
+          if (quitWhenGameExits) app.quit();
+          else if (win && win.isMinimized()) win.restore();
         }
         send('game:event', event);
-      }, undefined, {
-        // The game logs in again after a district reset with a new play
-        // token, got as Play gets one: in line while Toon Valley is full.
-        newLine: (onUpdate) => new Line({ auth, onUpdate }),
       });
       return { ok: true };
     } catch (err) {
@@ -593,7 +586,16 @@ app.whenReady().then(() => {
 
 // Closed without pressing Restart: a downloaded launcher still replaces
 // this one, ready for the next start.
+// A newer launcher app.asar downloaded as app.asar.next is swapped in once
+// this process is gone (see asarSwap.js).
 app.on('will-quit', () => {
+  try {
+    require('./asarSwap').finishOnExit(process.resourcesPath,
+      (line) => patcher && patcher.log(line));
+  } catch (err) {
+    if (patcher) patcher.log(`launcher app.asar: ${err.message}`);
+  }
+
   if (selfUpdater) {
     try {
       selfUpdater.finishOnExit();
@@ -604,14 +606,21 @@ app.on('will-quit', () => {
 });
 
 app.on('window-all-closed', () => {
+  // Swap a downloaded app.asar in as soon as the last window is gone; on
+  // Wine and on hard window closes `will-quit` doesn't always run.
+  try {
+    require('./asarSwap').finishOnExit(process.resourcesPath,
+      (line) => patcher && patcher.log(line));
+  } catch (err) {
+    if (patcher) patcher.log(`launcher app.asar: ${err.message}`);
+  }
+  auth && auth.logout();
   if (patcher) patcher.cancel();
   // The game's output comes through a pipe to the launcher, so quitting now
-  // could crash it: stay in the background until the game exits, still
-  // logged in, for the game to log in again with after a district reset.
+  // could crash it: stay in the background until the game exits.
   if (gameProcess) {
     quitWhenGameExits = true;
     return;
   }
-  auth && auth.logout();
   if (process.platform !== 'darwin') app.quit();
 });
