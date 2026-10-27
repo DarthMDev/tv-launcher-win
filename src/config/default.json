@@ -1,0 +1,56 @@
+{
+  "serverName": "Toon Valley",
+  "gameServerHost": "play.toonvalley.net",
+  "gameServerPort": 7198,
+  "loginApiUrl": "https://api.toonvalley.net",
+  "newsUrl": "https://toonvalley.net/news.json",
+  "forgotPasswordUrl": "https://toonvalley.net/forgot-password",
+  "accountUrl": "https://toonvalley.net/account#access",
+  "updates": {
+    "manifestUrl": "https://dl.toonvalley.net/{platform}/manifest.json",
+    "mirrors": [],
+    "concurrency": 12,
+    "timeoutSeconds": 30,
+    "retries": 3,
+    "publicKey": "MCowBQYDK2VwAyEAtMrAi9W4Bw5p6Z/HRKajbx3hYin+E12pCDAmqyWxZ5s="
+  },
+  "links": [
+    {
+      "label": "Website",
+      "url": "https://toonvalley.net",
+      "place": "text"
+    },
+    {
+      "label": "Sign Up",
+      "url": "https://toonvalley.net/signup",
+      "place": "text"
+    },
+    {
+      "label": "Report an Issue",
+      "url": "mailto:support@toonvalley.net",
+      "place": "text"
+    },
+    {
+      "label": "Discord",
+      "url": "https://discord.gg/6DwaVpTzgc",
+      "place": "icon",
+      "icon": "discord"
+    }
+  ],
+  "news": [
+    {
+      "title": "Welcome to the Toon Valley Alpha!",
+      "body": "The gates are open! Make a Toon, grab some gags and help us find bugs before launch.",
+      "date": "October 15"
+    },
+    {
+      "title": "Estates, Gardens and Fishing",
+      "body": "Your estate is ready: plant flowers, rent a cannon, and cast a line in the pond.",
+      "date": "October 14"
+    },
+    {
+      "title": "Report a Bug, Earn Bragging Rights",
+      "body": "Spotted something silly? Use \"Report an Issue\" below and send us the game log from the logs folder."
+    }
+  ]
+}

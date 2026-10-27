@@ -1,0 +1,4 @@
+/* Made by tools/build_logo_files.py: where the logo's pie and Cog gear
+   sit on its letters, and the point each turns about. */
+.anim-logo-pie { left: 25.343%; top: 1.287%; width: 26.678%; height: 54.545%; transform-origin: 48.090% 89.233%; }
+.anim-logo-gear { left: 48.506%; top: 2.092%; width: 21.090%; height: 48.270%; transform-origin: 50.000% 50.000%; }

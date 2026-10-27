@@ -1,0 +1,14 @@
+{
+  "name": "toon-valley-launcher",
+  "productName": "Toon Valley Launcher",
+  "version": "2.2.0",
+  "description": "Toon Valley Launcher",
+  "main": "src/main/main.js",
+  "private": true,
+  "license": "BSD-3-Clause",
+  "author": {
+    "name": "Toon Valley",
+    "url": "https://toonvalley.net"
+  },
+  "homepage": "https://toonvalley.net"
+}
