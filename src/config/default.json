@@ -1,13 +1,13 @@
 {
   "serverName": "Toon Valley",
-  "gameServerHost": "play.toonvalley.net",
-  "gameServerPort": 7198,
-  "loginApiUrl": "https://api.toonvalley.net",
-  "newsUrl": "https://toonvalley.net/news.json",
+  "gameServerHost": "116.203.56.250",
+  "gameServerPort": 30720,
+  "loginApiUrl": "https://toonvalley.sapi.click",
+  "newsUrl": "",
   "forgotPasswordUrl": "https://toonvalley.net/forgot-password",
   "accountUrl": "https://toonvalley.net/account#access",
   "updates": {
-    "manifestUrl": "https://dl.toonvalley.net/{platform}/manifest.json",
+    "manifestUrl": "",
     "mirrors": [],
     "concurrency": 12,
     "timeoutSeconds": 30,
@@ -15,10 +15,27 @@
     "publicKey": "MCowBQYDK2VwAyEAtMrAi9W4Bw5p6Z/HRKajbx3hYin+E12pCDAmqyWxZ5s="
   },
   "links": [
-    { "label": "Website", "url": "https://toonvalley.net", "place": "text" },
-    { "label": "Sign Up", "url": "https://toonvalley.net/signup", "place": "text" },
-    { "label": "Report an Issue", "url": "mailto:support@toonvalley.net", "place": "text" },
-    { "label": "Discord", "url": "https://discord.gg/6DwaVpTzgc", "place": "icon", "icon": "discord" }
+    {
+      "label": "Website",
+      "url": "https://toonvalley.net",
+      "place": "text"
+    },
+    {
+      "label": "Sign Up",
+      "url": "https://toonvalley.net/signup",
+      "place": "text"
+    },
+    {
+      "label": "Report an Issue",
+      "url": "mailto:support@toonvalley.net",
+      "place": "text"
+    },
+    {
+      "label": "Discord",
+      "url": "https://discord.gg/6DwaVpTzgc",
+      "place": "icon",
+      "icon": "discord"
+    }
   ],
   "news": [
     {

@@ -10,7 +10,7 @@ const DEFAULTS = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'co
 
 // Settings the user may change. The server addresses aren't among them:
 // the game server is config/default.json's, with no choice of another.
-const EDITABLE = ['gameDir', 'pythonPath', 'rememberUsername', 'username'];
+const EDITABLE = ['gameDir', 'pythonPath', 'rememberUsername', 'username', 'winePath', 'winePrefix'];
 
 // Environment overrides, e.g. LOGIN_API_URL=https://login.example.com npm start.
 // (Not the game server's address: the launcher only plays on the game server.)

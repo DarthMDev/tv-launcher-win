@@ -10,6 +10,7 @@ const { Line } = require('./line');
 const { DownloadAuth } = require('./downloadAuth');
 const { SavedLogin } = require('./credentials');
 const game = require('./game');
+const wine = require('./wine');
 const { Patcher } = require('./patcher/patcher');
 const { SelfUpdater, portableExePath } = require('./patcher/selfupdate');
 const changelog = require('./changelog');
@@ -440,6 +441,29 @@ function registerIpc() {
       game.hideCodeFolders(gameDir);
       const settings = config.get();
       const program = game.findGameProgram(gameDir, settings.pythonPath);
+      // a Windows client on Linux: pick a runner and make the prefix first
+      let wineLaunch = null;
+      if (program.wine) {
+        try {
+          const runner = wine.findWine({ settings, dataDir: app.getPath('userData') });
+          const prefix = wine.resolvePrefix({
+            settings,
+            userDataDir: app.getPath('userData'),
+            appDir: path.dirname(app.getPath('exe')),
+            gameDir,
+          });
+          // The game folder usually sits inside a prefix of its own (a Wine
+          // or Proton install); that prefix is used as it is.  Only a new
+          // one has to be made, which is slow, so say so while it happens.
+          if (!wine.prefixReady(prefix.dir)) {
+            send('game:event', { type: 'starting', detail: 'Setting up Wine' });
+            await wine.ensurePrefix(prefix.dir, runner, { log: (text) => send('patcher:log', { text }) });
+          }
+          wineLaunch = { command: runner.command, prefix: prefix.dir, dllOverrides: wine.WINE_DLL_OVERRIDES };
+        } catch (err) {
+          return { ok: false, code: err.code || 'wine-missing', message: err.message };
+        }
+      }
       // While Toon Valley is full, this waits in line (line.js).
       line = new Line({ auth, onUpdate: (update) => send('line:update', update) });
       let playToken;
@@ -456,7 +480,7 @@ function registerIpc() {
       if (!playToken) return { ok: false, code: 'left-line', message: 'You left the line.' };
       const launch = game.buildLaunch({
         gameDir, program, host: settings.gameServerHost, port: settings.gameServerPort, playToken,
-        gameVersion: current ? current.installedVersion() : null,
+        gameVersion: current ? current.installedVersion() : null, wine: wineLaunch,
       });
       gameProcess = game.launchGame(launch, (event) => {
         const win = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;

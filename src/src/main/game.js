@@ -6,12 +6,19 @@
 // win32/start_game.bat and linux/start-game.sh do.
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn } = require('child_process');
 const { RETRYABLE } = require('./line');
 
 // Files the client needs; their absence means the game folder is wrong or
 // incomplete.
-const GAME_EXE = { win32: 'ToonValley.exe' };
+// On Windows the game exe runs directly; on Linux/macOS it runs under Wine.
+// ToonValleyStub.exe (our runtime, stdlib on disk) wins when present.
+const GAME_EXE = {
+  win32: ['ToonValley.exe'],
+  linux: ['ToonValleyStub.exe', 'ToonValley.exe'],
+  darwin: ['ToonValleyStub.exe', 'ToonValley.exe'],
+};
 const EXE_REQUIRED_FILES = [
   ['phase_3.mf', 'the game resources (phase_3.mf)'],
 ];
@@ -40,8 +47,26 @@ function defaultGameDir({ packaged, appPath, execPath, resourcesPath, platform =
   const exeDir = path.dirname(execPath);
   const candidates = [exeDir, path.dirname(exeDir), path.resolve(exeDir, '..', '..')];
   if (resourcesPath) candidates.unshift(path.join(resourcesPath, 'game'));
+  // a game installed inside a Wine/Proton prefix (the usual Linux case)
+  try {
+    const games = path.join(os.homedir(), 'Games');
+    for (const prefix of fs.readdirSync(games)) {
+      const users = path.join(games, prefix, 'drive_c', 'users');
+      let names = [];
+      try {
+        names = fs.readdirSync(users);
+      } catch {
+        continue;
+      }
+      for (const user of names) {
+        candidates.push(path.join(users, user, 'AppData', 'Local', 'Programs', 'Toon Valley'));
+      }
+    }
+  } catch {
+    // no ~/Games
+  }
   for (const candidate of candidates) {
-    if (gameExe(candidate, platform) && fs.existsSync(path.join(candidate, EXE_REQUIRED_FILES[0][0]))) return candidate;
+    if (gameExe(candidate, platform) || gameExe(candidate, 'win32')) return candidate;
     if (fs.existsSync(path.join(candidate, REQUIRED_FILES[0][0]))) return candidate;
   }
   return exeDir;
@@ -60,8 +85,11 @@ function installDir({ platform = process.platform, exePath, localAppData, appDat
 
 // The built game's executable in gameDir, or null for a checkout.
 function gameExe(gameDir, platform = process.platform) {
-  const exe = path.join(gameDir, GAME_EXE[platform] || 'ToonValley');
-  return fs.existsSync(exe) ? exe : null;
+  for (const name of GAME_EXE[platform] || ['ToonValley']) {
+    const exe = path.join(gameDir, name);
+    if (fs.existsSync(exe)) return exe;
+  }
+  return null;
 }
 
 function checkGameFiles(gameDir, platform = process.platform) {
@@ -117,7 +145,11 @@ function findPython(gameDir, override, platform = process.platform) {
 // checkout), otherwise Python with the game's start module.
 function findGameProgram(gameDir, pythonOverride, platform = process.platform) {
   const exe = !pythonOverride && gameExe(gameDir, platform);
-  if (exe) return { command: exe, args: [] };
+  if (exe) {
+    // a Windows build on a non-Windows host runs through Wine
+    if (platform === 'win32') return { command: exe, args: [] };
+    return { exe, wine: true };
+  }
   return { command: findPython(gameDir, pythonOverride, platform), args: ['-m', 'toontown.launcher.QuickStartLauncher'] };
 }
 
@@ -126,15 +158,26 @@ function findGameProgram(gameDir, pythonOverride, platform = process.platform) {
 // its input). program comes from findGameProgram; python alone means
 // `<python> -m ...`. gameVersion, the installed release, is shown in the
 // game's corner (ToontownStart).
-function buildLaunch({ gameDir, program, python, host, port, playToken, gameVersion, baseEnv = process.env }) {
+function buildLaunch({ gameDir, program, python, host, port, playToken, gameVersion, baseEnv = process.env, wine = null }) {
   // PYTHONUNBUFFERED lets the launcher follow the client's progress.
   // LOGIN_TOKEN_PIPE: the game may ask for another play token.
-  const env = { ...baseEnv, GAME_SERVER: `${host}:${port}`, LOGIN_TOKEN: playToken, LOGIN_TOKEN_PIPE: '1', PYTHONUNBUFFERED: '1' };
+  let env = { ...baseEnv, GAME_SERVER: `${host}:${port}`, LOGIN_TOKEN: playToken, LOGIN_TOKEN_PIPE: '1', PYTHONUNBUFFERED: '1' };
+  if (wine && wine.prefix) {
+    env = { ...env, WINEPREFIX: wine.prefix, WINEDLLOVERRIDES: wine.dllOverrides, WINEDEBUG: '-all' };
+  }
   if (gameVersion) env.GAME_VERSION = gameVersion;
   else delete env.GAME_VERSION;
   // Never hand the launcher's own overrides or secrets to the client.
   delete env.MONGODB_URI;
   delete env.MONGO_URI;
+  if (program && program.wine) {
+    if (!wine || !wine.command) throw new Error('Wine is needed to run the game on this system.');
+    return {
+      command: wine.command,
+      args: [program.exe],
+      options: { cwd: gameDir, env, shell: false, windowsHide: false, stdio: ['pipe', 'pipe', 'pipe'] },
+    };
+  }
   return {
     command: program ? program.command : python,
     args: program ? program.args : ['-m', 'toontown.launcher.QuickStartLauncher'],

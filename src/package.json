@@ -10,5 +10,27 @@
     "name": "Toon Valley",
     "url": "https://toonvalley.net"
   },
-  "homepage": "https://toonvalley.net"
+  "homepage": "https://toonvalley.net",
+  "build": {
+    "appId": "net.toonvalley.launcher",
+    "productName": "Toon Valley Launcher",
+    "electronVersion": "45.1.0",
+    "electronDist": "/home/deck/node_modules/electron/dist",
+    "files": [
+      "src/**",
+      "assets/**",
+      "config/**",
+      "package.json"
+    ],
+    "directories": {
+      "output": "../../launcher_linux/dist"
+    },
+    "linux": {
+      "target": [
+        "dir"
+      ],
+      "category": "Game",
+      "icon": "assets/icon.png"
+    }
+  }
 }
