@@ -104,6 +104,13 @@ function validateSettings(settings) {
   if (settings.pythonPath !== undefined && settings.pythonPath !== '' && !validLocalPath(settings.pythonPath)) {
     errors.pythonPath = 'Choose the Python program that runs the game.';
   }
+  // The Wine runner and prefix (Linux): both optional, and both a path.
+  if (settings.winePath !== undefined && settings.winePath !== '' && !validLocalPath(settings.winePath)) {
+    errors.winePath = 'Choose the Wine program that runs the game.';
+  }
+  if (settings.winePrefix !== undefined && settings.winePrefix !== '' && !validLocalPath(settings.winePrefix)) {
+    errors.winePrefix = 'Choose the Windows prefix the game runs in.';
+  }
   if (typeof settings.username === 'string' && settings.username.length > 128) errors.username = 'That username is too long.';
   return errors;
 }
@@ -115,6 +122,8 @@ function normalize(settings) {
   if (typeof out.loginApiUrl === 'string') out.loginApiUrl = out.loginApiUrl.trim().replace(/\/+$/, '');
   if (typeof out.gameDir === 'string') out.gameDir = out.gameDir.trim();
   if (typeof out.pythonPath === 'string') out.pythonPath = out.pythonPath.trim();
+  if (typeof out.winePath === 'string') out.winePath = out.winePath.trim();
+  if (typeof out.winePrefix === 'string') out.winePrefix = out.winePrefix.trim();
   out.rememberUsername = Boolean(out.rememberUsername);
   if (typeof out.username !== 'string' || !out.rememberUsername) out.username = '';
   return out;

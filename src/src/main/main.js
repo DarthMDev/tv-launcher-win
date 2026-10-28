@@ -164,6 +164,7 @@ function publicSettings() {
   return {
     ...settings,
     resolvedGameDir: getGameDir(),
+    platform: process.platform,
     appVersion: app.getVersion(),
     updatesEnabled: Boolean(current),
     installedVersion: current ? current.installedVersion() : null,
