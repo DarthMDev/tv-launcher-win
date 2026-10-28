@@ -7,7 +7,7 @@
   "forgotPasswordUrl": "",
   "accountUrl": "",
   "updates": {
-    "manifestUrl": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/manifest.json",
+    "manifestUrl": "",
     "mirrors": [],
     "concurrency": 12,
     "timeoutSeconds": 30,
