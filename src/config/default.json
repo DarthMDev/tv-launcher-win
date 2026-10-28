@@ -7,12 +7,12 @@
   "forgotPasswordUrl": "",
   "accountUrl": "",
   "updates": {
-    "manifestUrl": "",
+    "manifestUrl": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/manifest.json",
     "mirrors": [],
     "concurrency": 12,
     "timeoutSeconds": 30,
     "retries": 3,
-    "publicKey": "MCowBQYDK2VwAyEAtMrAi9W4Bw5p6Z/HRKajbx3hYin+E12pCDAmqyWxZ5s="
+    "publicKey": "MCowBQYDK2VwAyEAMCEH9laAKmlqkNKUWVX3XyRWeZz82U+wRw7e2CR1QLc="
   },
   "links": [],
   "news": [
