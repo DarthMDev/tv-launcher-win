@@ -95,7 +95,13 @@ function downloadToken() {
 // Launcher.exe updating itself from the release's launcher entry, when it
 // is the portable Launcher.exe and updates are on.
 function getSelfUpdater() {
-  const exePath = portableExePath();
+  // The portable build tells us where its exe is through
+  // PORTABLE_EXECUTABLE_FILE.  A launcher unpacked from the release zip has
+  // no such variable, but it can still replace its own file the same way:
+  // the running exe is renamed only after this process exits (see
+  // selfupdate.js finishOnExit), so process.execPath works there too.
+  const exePath = portableExePath() ||
+    (app.isPackaged && process.platform === 'win32' ? process.execPath : null);
   const updates = updatesConfig(config.get());
   if (!exePath || !updates || updates.problem) return null;
   if (!selfUpdater) {
