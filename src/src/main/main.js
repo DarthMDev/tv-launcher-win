@@ -647,6 +647,23 @@ app.whenReady().then(() => {
 // the patcher can only write there; move it across and swap it too.
 function finishAsarSwap(log) {
   const swap = require('./asarSwap');
+  // On non-Windows platforms (macOS / Linux), the game manifest from the server
+  // ships a Windows launcher app.asar. Never allow it to overwrite the native launcher!
+  if (process.platform !== 'win32') {
+    try {
+      const staged = swap.pendingPath(path.join(getGameDir(), 'Launcher', 'resources'));
+      if (fs.existsSync(staged)) fs.unlinkSync(staged);
+    } catch {}
+    try {
+      const local = swap.pendingPath(process.resourcesPath);
+      if (fs.existsSync(local)) fs.unlinkSync(local);
+    } catch {}
+    try {
+      const old = path.join(process.resourcesPath, 'app.asar.old');
+      if (fs.existsSync(old)) fs.unlinkSync(old);
+    } catch {}
+    return false;
+  }
   try {
     if (swap.finishOnExit(process.resourcesPath, log)) return true;
   } catch (err) {

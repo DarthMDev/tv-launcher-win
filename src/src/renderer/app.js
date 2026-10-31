@@ -505,7 +505,9 @@ function formatPlayTime(ms) {
 let sessionStart = null;
 
 function handleGameEvent(event) {
-  if (event.type === 'started') {
+  if (event.type === 'starting') {
+    setProgress('busy', event.detail || 'Starting…');
+  } else if (event.type === 'started') {
     setProgress('busy', 'Loading the game…');
     window.scene.sound('bell', 0.4);
   } else if (event.type === 'running') {
