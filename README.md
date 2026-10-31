@@ -44,6 +44,16 @@ python tools/make_launcher_release.py dist/linux-unpacked/resources/app.asar
 # -> prints: --extra "Launcher/resources/app.asar.next|release/app.asar|https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/release/app.asar"
 ```
 
+The Linux launcher itself is too big for the branch (275 MB unpacked), so its
+installer is a release asset while the UI updates through `release/app.asar`:
+
+```sh
+python tools/bundle_linux_release.py ../../launcher_linux/dist/linux-unpacked
+# -> dist/release/toon-valley-launcher-<version>-linux-x86_64.tar.gz (~119 MiB)
+```
+
+Attach that archive to the GitHub release; it needs no manifest entry.
+
 Add that `--extra` when the game manifest is built (server side, key required):
 
 ```sh
