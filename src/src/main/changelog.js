@@ -4,6 +4,21 @@
 // published with win32\build_launcher.bat <version>.
 const CHANGELOG = [
   {
+    version: '2.2.4',
+    items: [
+      'The launcher updates itself from the same signed list the game uses: a new launcher is downloaded in the background and swapped in when you close it, so a launcher update no longer means downloading the installer again.',
+      'Works from a launcher that was unzipped rather than installed, too: Settings \u2192 Check for update can now replace the launcher program itself.',
+      'Settings \u2192 Game: choose the folder the game is in. The window opens at the folder the launcher found by itself, and Automatic takes you back to that.',
+      'On Linux the launcher takes its update from the same place as the game, instead of only next to itself.',
+    ],
+  },
+  {
+    version: '2.2.3',
+    items: [
+      'A downloaded launcher update is put in place when the launcher closes, so Restart is optional.',
+    ],
+  },
+  {
     version: '2.2.2',
     items: [
       "Updates clear out the game's bin folder: files earlier versions left there, and anything else that isn't part of the game, are removed.",
