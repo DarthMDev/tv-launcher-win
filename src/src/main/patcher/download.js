@@ -141,10 +141,24 @@ async function withRetries(fn, { retries, signal, baseDelayMs = 500 }) {
 }
 
 // Downloads a small text resource (the manifest or its signature).
+// A stalled login or device-token refresh must never stop an update check:
+// the manifest and the public files answer without a token.
+const TOKEN_WAIT_MS = 5000;
+
+function withTokenTimeout(promise, ms) {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('token wait timed out')), ms);
+    Promise.resolve(promise).then(
+      (value) => { clearTimeout(timer); resolve(value); },
+      (err) => { clearTimeout(timer); reject(err); },
+    );
+  });
+}
+
 async function currentToken(getToken) {
   if (!getToken) return null;
   try {
-    return (await getToken()) || null;
+    return (await withTokenTimeout(getToken(), TOKEN_WAIT_MS)) || null;
   } catch {
     return null; // Without a token, a public server still answers.
   }
