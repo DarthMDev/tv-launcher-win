@@ -30,6 +30,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('built', help='the electron-builder output dir')
     parser.add_argument('-o', '--output', default=None)
+    parser.add_argument('--root-name', default='toon-valley-launcher',
+                        help='top-level folder inside the archive')
     args = parser.parse_args()
 
     if not os.path.isdir(args.built):
@@ -39,7 +41,7 @@ def main():
                                          'toon-valley-launcher-%s-linux-x86_64.tar.gz'
                                          % version())
     os.makedirs(os.path.dirname(output), exist_ok=True)
-    base = os.path.basename(os.path.normpath(args.built))
+    base = args.root_name
 
     count = 0
     with tarfile.open(output, 'w:gz') as archive:
