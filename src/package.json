@@ -15,7 +15,6 @@
     "appId": "net.toonvalley.launcher",
     "productName": "Toon Valley Launcher",
     "electronVersion": "45.1.0",
-    "electronDist": "/home/deck/node_modules/electron/dist",
     "files": [
       "src/**",
       "assets/**",
@@ -23,7 +22,7 @@
       "package.json"
     ],
     "directories": {
-      "output": "../../launcher_linux/dist"
+      "output": "dist"
     },
     "linux": {
       "target": [

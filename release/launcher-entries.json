@@ -1,0 +1,19 @@
+{
+ "version": "2.2.3",
+ "branch": "linux",
+ "files": [
+  {
+   "path": "Launcher/resources/app.asar.next",
+   "size": 1342852,
+   "sha256": "3b4cac0dc92a1c561ec1a439e7f6164c0d5289d7858d617e8c07be5dc1977cee",
+   "url": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/release/app.asar"
+  }
+ ],
+ "launcher": {
+  "path": "Launcher.exe",
+  "size": 110988942,
+  "sha256": "e51804c2ada75a796ee26ccc4e4a82ce8400a7a34f6ae7eddacaa27371895100",
+  "version": "2.2.3",
+  "url": "https://github.com/tvtvalley/tv-launcher-win/releases/download/v2.2.3/ToonValleyLauncher-2.2.3.exe"
+ }
+}

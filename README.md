@@ -54,6 +54,13 @@ python tools/bundle_linux_release.py ../../launcher_linux/dist/linux-unpacked
 
 Attach that archive to the GitHub release; it needs no manifest entry.
 
+Check the result before publishing - `check_manifest.js` runs the launcher's
+own parser over it:
+
+```sh
+node tools/check_manifest.js dl/manifest.json --sig dl/manifest.json.sig --key <public key>
+```
+
 Add that `--extra` when the game manifest is built (server side, key required):
 
 ```sh
