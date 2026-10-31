@@ -7,7 +7,7 @@
   "forgotPasswordUrl": "",
   "accountUrl": "",
   "updates": {
-    "manifestUrl": "",
+    "manifestUrl": "https://toonvalley.sapi.click/dl/manifest.json",
     "mirrors": [],
     "concurrency": 12,
     "timeoutSeconds": 30,
