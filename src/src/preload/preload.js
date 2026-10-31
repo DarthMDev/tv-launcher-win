@@ -8,8 +8,8 @@ contextBridge.exposeInMainWorld('launcher', {
   saveSettings: (changes) => ipcRenderer.invoke('settings:save', changes),
   // rememberPassword: the "Remember password" box, ticked to keep a saved password.
   resetSettings: (rememberPassword) => ipcRenderer.invoke('settings:reset', { rememberPassword: rememberPassword === true }),
-  chooseFolder: () => ipcRenderer.invoke('settings:chooseFolder'),
-  chooseFile: () => ipcRenderer.invoke('settings:chooseFile'),
+  chooseFolder: (startIn) => ipcRenderer.invoke('settings:chooseFolder', startIn),
+  chooseFile: (startIn) => ipcRenderer.invoke('settings:chooseFile', startIn),
   checkStatus: () => ipcRenderer.invoke('status:check'),
   login: (username, password, rememberPassword) => ipcRenderer.invoke('auth:login', { username, password, rememberPassword: Boolean(rememberPassword) }),
   getSavedLogin: () => ipcRenderer.invoke('auth:savedLogin'),

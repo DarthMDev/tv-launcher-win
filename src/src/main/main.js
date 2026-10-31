@@ -260,13 +260,23 @@ function registerIpc() {
     return publicSettings();
   });
 
-  handle('settings:chooseFolder', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose the game folder', properties: ['openDirectory'] });
+  // The page passes where to start (the game folder it already found), so the
+  // picker opens there instead of wherever the OS last was.
+  handle('settings:chooseFolder', async (_event, startIn) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose the game folder',
+      defaultPath: typeof startIn === 'string' && startIn ? startIn : getGameDir(),
+      properties: ['openDirectory', 'createDirectory'],
+    });
     return result.canceled ? null : result.filePaths[0];
   });
 
-  handle('settings:chooseFile', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, { title: 'Choose the Python program that runs the game', properties: ['openFile'] });
+  handle('settings:chooseFile', async (_event, startIn) => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Choose the Python program that runs the game',
+      defaultPath: typeof startIn === 'string' && startIn ? startIn : undefined,
+      properties: ['openFile'],
+    });
     return result.canceled ? null : result.filePaths[0];
   });
 

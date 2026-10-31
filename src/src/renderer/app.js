@@ -704,12 +704,13 @@ function fillSettingsForm() {
 // means automatic: the launcher finds the game next to itself, and the prefix
 // the game is installed in (or one of its own).
 function fillRuntimeSettings() {
-  // The game runs natively on Windows, so there is nothing to choose there.
+  // The game folder is always choosable; the Wine rows only exist where the
+  // game runs through Wine (the game runs natively on Windows).
   const asksForWine = settings.platform !== 'win32';
-  $('runtime-setting').hidden = !asksForWine;
-  if (!asksForWine) return;
   $('game-folder-help').textContent = settings.gameDir || `${settings.resolvedGameDir} (found automatically)`;
   $('reset-game-folder').hidden = !settings.gameDir;
+  $('wine-settings').hidden = !asksForWine;
+  if (!asksForWine) return;
   $('wine-help').textContent = settings.winePath || 'Automatic: system Wine, then Steam Proton, then a downloaded runner.';
   $('reset-wine').hidden = !settings.winePath;
   $('wine-prefix-help').textContent = settings.winePrefix || "Automatic: the prefix the game is installed in, else the launcher's own.";
@@ -732,17 +733,17 @@ async function saveRuntimeSetting(changes) {
 }
 
 async function chooseGameFolder() {
-  const dir = await api.chooseFolder();
+  const dir = await api.chooseFolder(settings.gameDir || settings.resolvedGameDir);
   if (dir) await saveRuntimeSetting({ gameDir: dir });
 }
 
 async function chooseWine() {
-  const file = await api.chooseFile();
+  const file = await api.chooseFile(settings.winePath || '');
   if (file) await saveRuntimeSetting({ winePath: file });
 }
 
 async function chooseWinePrefix() {
-  const dir = await api.chooseFolder();
+  const dir = await api.chooseFolder(settings.winePrefix || '');
   if (dir) await saveRuntimeSetting({ winePrefix: dir });
 }
 
