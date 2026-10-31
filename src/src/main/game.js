@@ -15,10 +15,18 @@ const { RETRYABLE } = require('./line');
 // On Windows the game exe runs directly; on Linux/macOS it runs under Wine.
 // ToonValleyStub.exe (our runtime, stdlib on disk) wins when present.
 const GAME_EXE = {
-  win32: ['ToonValley.exe'],
+  win32: ['ToonValleyStub.exe', 'ToonValley.exe'],
   linux: ['ToonValleyStub.exe', 'ToonValley.exe'],
   darwin: ['ToonValleyStub.exe', 'ToonValley.exe'],
 };
+// The stub runs the game on a CPython we ship (runtime/python313.zip plus
+// python313._pth) instead of the stdlib frozen into the original exe; without
+// those two the stub exits before the game starts.
+const STUB_EXE = 'ToonValleyStub.exe';
+const STUB_REQUIRED_FILES = [
+  ['python313._pth', 'the game runtime (python313._pth)'],
+  ['runtime/python313.zip', 'the game runtime (runtime/python313.zip)'],
+];
 const EXE_REQUIRED_FILES = [
   ['phase_3.mf', 'the game resources (phase_3.mf)'],
 ];
@@ -96,7 +104,9 @@ function checkGameFiles(gameDir, platform = process.platform) {
   if (!gameDir || !fs.existsSync(gameDir) || !fs.statSync(gameDir).isDirectory()) {
     return { ok: false, missing: ['the game folder'], message: 'The game folder could not be found. Choose it in Settings.' };
   }
-  const required = gameExe(gameDir, platform) ? EXE_REQUIRED_FILES : REQUIRED_FILES;
+  const exe = gameExe(gameDir, platform);
+  let required = exe ? EXE_REQUIRED_FILES : REQUIRED_FILES;
+  if (exe && path.basename(exe) === STUB_EXE) required = EXE_REQUIRED_FILES.concat(STUB_REQUIRED_FILES);
   const missing = required.filter(([file]) => !fs.existsSync(path.join(gameDir, file))).map(([, what]) => what);
   if (missing.length) {
     return {
