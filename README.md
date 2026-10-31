@@ -15,6 +15,11 @@ release/  built launcher artifacts that the update manifest points at
 
 ## Build
 
+The launcher ships **Electron 33.4.11** (`build.electronVersion`). That is the
+version the 2.2.3 release runs; newer Electron builds start but never draw a
+window under Wine, which is how Linux players and our own tests run the
+Windows build. Do not bump it without testing both.
+
 ```sh
 cd src
 npm ci
