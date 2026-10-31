@@ -14,7 +14,7 @@
   "build": {
     "appId": "net.toonvalley.launcher",
     "productName": "Toon Valley Launcher",
-    "electronVersion": "45.1.0",
+    "electronVersion": "33.4.11",
     "files": [
       "src/**",
       "assets/**",
