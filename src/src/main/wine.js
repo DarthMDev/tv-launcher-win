@@ -22,6 +22,18 @@ const { spawn, spawnSync } = require('child_process');
 const WINE_DLL_OVERRIDES =
   'd3dcompiler_47=n,b;ffmpeg=n,b;libEGL=n,b;libGLESv2=n,b;vk_swiftshader=n,b;vulkan-1=n,b;winhttp=n,b';
 
+// On macOS, add opengl32=n,b to use WineMetalGL (OpenGL -> Apple Metal translation)
+const WINE_MAC_DLL_OVERRIDES = WINE_DLL_OVERRIDES + ';opengl32=n,b';
+
+function wineDllOverrides(platform = process.platform) {
+  return platform === 'darwin' ? WINE_MAC_DLL_OVERRIDES : WINE_DLL_OVERRIDES;
+}
+
+// WineMetalGL version and URLs
+const WINEMETALGL_VERSION = '3.7.0';
+const WINEMETALGL_URL = (arch) =>
+  `https://github.com/metalsharp/WineMetalGL/releases/download/winemetalgl-${WINEMETALGL_VERSION}/winemetalgl-${WINEMETALGL_VERSION}-${arch}.tar.gz`;
+
 // Default free, portable Wine runner for macOS (Gcenx's official Wine-Staging build)
 const DEFAULT_MAC_RUNNER_URL =
   'https://github.com/Gcenx/macOS_Wine_builds/releases/download/11.21/wine-staging-11.21-osx64.tar.xz';
@@ -117,6 +129,8 @@ function macOSWineRunners(home = os.homedir()) {
     path.join(home, 'Applications'),
   ];
   const appNames = [
+    'MetalSharp-Wine.app',
+    'MetalSharp Wine.app',
     'Wine Staging.app',
     'Wine Devel.app',
     'Wine Crossover.app',
@@ -393,11 +407,110 @@ function prefixReady(prefixDir) {
   return fs.existsSync(path.join(prefixDir, 'system.reg'));
 }
 
+// Install WineMetalGL (OpenGL -> Apple Metal translation) into the prefix and Wine installation
+async function ensureWineMetalGL(prefixDir, wine, { dataDir, log = () => {} } = {}) {
+  const sys32 = path.join(prefixDir, 'drive_c', 'windows', 'system32');
+  const installedDll = path.join(sys32, 'winemetalgl.dll');
+  const installedOpengl = path.join(sys32, 'opengl32.dll');
+  if (fs.existsSync(installedDll) && fs.existsSync(installedOpengl)) {
+    return;
+  }
+
+  // Find the Wine install folder
+  let wineDir = path.dirname(path.resolve(wine.command));
+  if (path.basename(wineDir) === 'bin') wineDir = path.dirname(wineDir);
+  if (fs.existsSync(path.join(wineDir, 'Resources', 'wine'))) {
+    wineDir = path.join(wineDir, 'Resources', 'wine');
+  }
+
+  // MetalSharp Wine already provides WineMetalGL for every prefix
+  if (fs.existsSync(path.join(wineDir, 'lib', 'winemetalgl')) ||
+      (wine.command && wine.command.includes('MetalSharp'))) {
+    return;
+  }
+
+  log('Setting up WineMetalGL (OpenGL -> Metal translation)…');
+
+  // Detect Wine architecture (aarch64 vs x86_64)
+  const libWine = path.join(wineDir, 'lib', 'wine');
+  const isArm = fs.existsSync(path.join(libWine, 'aarch64-unix', 'ntdll.so')) &&
+               !fs.existsSync(path.join(libWine, 'x86_64-unix', 'ntdll.so'));
+  const arch = isArm ? 'arm64' : 'x86_64';
+  const winDir = isArm ? 'aarch64-windows' : 'x86_64-windows';
+  const unixDir = isArm ? 'aarch64-unix' : 'x86_64-unix';
+
+  // Cache directory for downloaded WineMetalGL release
+  const cacheBase = dataDir || path.join(os.homedir(), 'Library', 'Caches', 'WineMetalGL');
+  const cacheDir = path.join(cacheBase, 'winemetalgl', WINEMETALGL_VERSION, arch);
+  const extractDir = path.join(cacheDir, `winemetalgl-${WINEMETALGL_VERSION}-${arch}`);
+  const moduleDir = path.join(extractDir, 'module');
+
+  if (!fs.existsSync(path.join(moduleDir, unixDir, 'libwinemetalgl.dylib'))) {
+    fs.mkdirSync(cacheDir, { recursive: true });
+    const tarPath = path.join(cacheDir, `winemetalgl-${WINEMETALGL_VERSION}-${arch}.tar.gz`);
+    const downloadUrl = WINEMETALGL_URL(arch);
+    log(`Downloading WineMetalGL from ${downloadUrl}`);
+    await fetchUrl(downloadUrl, tarPath);
+    spawnSync('tar', ['-xzf', tarPath, '-C', cacheDir]);
+    try { fs.unlinkSync(tarPath); } catch {}
+  }
+
+  const copySafe = (src, dst) => {
+    try {
+      if (fs.existsSync(src)) {
+        fs.mkdirSync(path.dirname(dst), { recursive: true });
+        fs.copyFileSync(src, dst);
+      }
+    } catch {}
+  };
+
+  // Try installing into Wine lib directory if writable
+  copySafe(path.join(moduleDir, winDir, 'winemetalgl.dll'), path.join(libWine, winDir, 'winemetalgl.dll'));
+  copySafe(path.join(moduleDir, 'i386-windows', 'winemetalgl.dll'), path.join(libWine, 'i386-windows', 'winemetalgl.dll'));
+  copySafe(path.join(moduleDir, unixDir, 'winemetalgl.so'), path.join(libWine, unixDir, 'winemetalgl.so'));
+  copySafe(path.join(moduleDir, unixDir, 'libwinemetalgl.dylib'), path.join(libWine, unixDir, 'libwinemetalgl.dylib'));
+
+  for (const f of ['winemetalgl.so', 'libwinemetalgl.dylib']) {
+    const full = path.join(libWine, unixDir, f);
+    if (fs.existsSync(full)) {
+      try { spawnSync('xattr', ['-dr', 'com.apple.quarantine', full]); } catch {}
+      try { spawnSync('codesign', ['-f', '-s', '-', full]); } catch {}
+    }
+  }
+
+  // Install into prefix system32 and syswow64
+  fs.mkdirSync(sys32, { recursive: true });
+  copySafe(path.join(moduleDir, winDir, 'opengl32.dll'), path.join(sys32, 'opengl32.dll'));
+  copySafe(path.join(moduleDir, winDir, 'winemetalgl.dll'), path.join(sys32, 'winemetalgl.dll'));
+
+  const syswow64 = path.join(prefixDir, 'drive_c', 'windows', 'syswow64');
+  if (fs.existsSync(syswow64)) {
+    copySafe(path.join(moduleDir, 'i386-windows', 'opengl32.dll'), path.join(syswow64, 'opengl32.dll'));
+    copySafe(path.join(moduleDir, 'i386-windows', 'winemetalgl.dll'), path.join(syswow64, 'winemetalgl.dll'));
+  }
+
+  // Set registry override opengl32=native in prefix
+  spawnSync(wine.command, ['reg', 'add', 'HKCU\\Software\\Wine\\DllOverrides', '/v', 'opengl32', '/d', 'native', '/f'], {
+    env: { ...process.env, WINEPREFIX: prefixDir, WINEDEBUG: '-all' },
+  });
+
+  log('WineMetalGL enabled (Metal-accelerated OpenGL active).');
+}
+
 // Create the prefix once (wineboot -u); a missing prefix makes the first
 // launch slow but it is the same step a manual setup does.  Asynchronous: the
 // launcher window (and its progress text) stays alive while Wine works.
-function ensurePrefix(prefixDir, wine, { log = () => {}, timeoutMs = WINEBOOT_TIMEOUT_MS } = {}) {
-  if (prefixReady(prefixDir)) return Promise.resolve({ created: false, dir: prefixDir });
+function ensurePrefix(prefixDir, wine, { log = () => {}, timeoutMs = WINEBOOT_TIMEOUT_MS, dataDir } = {}) {
+  const setupMetalGL = () => {
+    if (process.platform === 'darwin') {
+      return ensureWineMetalGL(prefixDir, wine, { dataDir, log });
+    }
+    return Promise.resolve();
+  };
+
+  if (prefixReady(prefixDir)) {
+    return setupMetalGL().then(() => ({ created: false, dir: prefixDir }));
+  }
   fs.mkdirSync(prefixDir, { recursive: true });
   log(`Creating the Wine prefix in ${prefixDir}`);
   const env = {
@@ -454,6 +567,9 @@ function ensurePrefix(prefixDir, wine, { log = () => {}, timeoutMs = WINEBOOT_TI
         `Wine could not set up its prefix (exit ${code}).${detail ? ` ${detail}` : ''}`,
       ));
     });
+  }).then(async (res) => {
+    await setupMetalGL();
+    return res;
   });
 }
 
@@ -462,29 +578,34 @@ function wineEnv(prefixDir, baseEnv = process.env) {
   const env = {
     ...baseEnv,
     WINEPREFIX: prefixDir,
-    WINEDLLOVERRIDES: WINE_DLL_OVERRIDES,
+    WINEDLLOVERRIDES: wineDllOverrides(),
     WINEDEBUG: '-all',
   };
   if (process.platform === 'darwin') {
     env.WINEMAC_NO_FLICKER = '1';
     env.WINEMSYNC = '1';
+    env.WINEMETALGL = '1';
   }
   return env;
 }
 
 module.exports = {
   DEFAULT_MAC_RUNNER_URL,
+  WINEMETALGL_VERSION,
   WINE_DLL_OVERRIDES,
+  WINE_MAC_DLL_OVERRIDES,
   WineError,
   downloadRunner,
   downloadedRunners,
   ensurePrefix,
+  ensureWineMetalGL,
   findWine,
   gamePrefix,
   macOSWineRunners,
   prefixReady,
   resolvePrefix,
   steamProtonRunners,
+  wineDllOverrides,
   wineEnv,
   wineVersion,
 };

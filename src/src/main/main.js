@@ -483,9 +483,11 @@ function registerIpc() {
           // one has to be made, which is slow, so say so while it happens.
           if (!wine.prefixReady(prefix.dir)) {
             send('game:event', { type: 'starting', detail: 'Setting up Wine' });
-            await wine.ensurePrefix(prefix.dir, runner, { log: (text) => send('patcher:log', { text }) });
+            await wine.ensurePrefix(prefix.dir, runner, { dataDir: app.getPath('userData'), log: (text) => send('patcher:log', { text }) });
+          } else if (process.platform === 'darwin') {
+            await wine.ensureWineMetalGL(prefix.dir, runner, { dataDir: app.getPath('userData'), log: (text) => send('patcher:log', { text }) });
           }
-          wineLaunch = { command: runner.command, prefix: prefix.dir, dllOverrides: wine.WINE_DLL_OVERRIDES };
+          wineLaunch = { command: runner.command, prefix: prefix.dir, dllOverrides: wine.wineDllOverrides() };
         } catch (err) {
           return { ok: false, code: err.code || 'wine-missing', message: err.message };
         }
