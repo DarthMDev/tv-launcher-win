@@ -695,7 +695,55 @@ function fillSettingsForm() {
   $('repair-button').disabled = patch.running || gameRunning;
   showVersion();
   showSettingsGameState();
+  fillRuntimeSettings();
   $('launcher-help').textContent = `Launcher v${settings.appVersion}`;
+}
+
+// The Game section: which folder the game is in, and (where the game is a
+// Windows build run through Wine) which Wine and which prefix to use. Blank
+// means automatic: the launcher finds the game next to itself, and the prefix
+// the game is installed in (or one of its own).
+function fillRuntimeSettings() {
+  // The game runs natively on Windows, so there is nothing to choose there.
+  const asksForWine = settings.platform !== 'win32';
+  $('runtime-setting').hidden = !asksForWine;
+  if (!asksForWine) return;
+  $('game-folder-help').textContent = settings.gameDir || `${settings.resolvedGameDir} (found automatically)`;
+  $('reset-game-folder').hidden = !settings.gameDir;
+  $('wine-help').textContent = settings.winePath || 'Automatic: system Wine, then Steam Proton, then a downloaded runner.';
+  $('reset-wine').hidden = !settings.winePath;
+  $('wine-prefix-help').textContent = settings.winePrefix || "Automatic: the prefix the game is installed in, else the launcher's own.";
+  $('reset-wine-prefix').hidden = !settings.winePrefix;
+}
+
+// Saves one of the Game section's settings and shows the result (the chosen
+// folder may not be a game folder, which the status line then says).
+async function saveRuntimeSetting(changes) {
+  const result = await api.saveSettings(changes);
+  settings = result.settings;
+  fillRuntimeSettings();
+  if (!result.ok) {
+    const message = Object.values(result.errors || {})[0] || 'That setting could not be saved.';
+    $('game-folder-help').textContent = message;
+    showMessage(message);
+    return;
+  }
+  refreshStatus();
+}
+
+async function chooseGameFolder() {
+  const dir = await api.chooseFolder();
+  if (dir) await saveRuntimeSetting({ gameDir: dir });
+}
+
+async function chooseWine() {
+  const file = await api.chooseFile();
+  if (file) await saveRuntimeSetting({ winePath: file });
+}
+
+async function chooseWinePrefix() {
+  const dir = await api.chooseFolder();
+  if (dir) await saveRuntimeSetting({ winePrefix: dir });
 }
 
 // The Game files row in Settings: versions, and whether there's an update.
@@ -890,6 +938,12 @@ async function init() {
   $('launcher-restart').addEventListener('click', restartLauncher);
   $('open-logs').addEventListener('click', openLogs);
   $('check-game').addEventListener('click', checkGameFromSettings);
+  $('choose-game-folder').addEventListener('click', chooseGameFolder);
+  $('reset-game-folder').addEventListener('click', () => saveRuntimeSetting({ gameDir: '' }));
+  $('choose-wine').addEventListener('click', chooseWine);
+  $('reset-wine').addEventListener('click', () => saveRuntimeSetting({ winePath: '' }));
+  $('choose-wine-prefix').addEventListener('click', chooseWinePrefix);
+  $('reset-wine-prefix').addEventListener('click', () => saveRuntimeSetting({ winePrefix: '' }));
   $('check-launcher').addEventListener('click', checkLauncherFromSettings);
   api.onLauncherUpdated(({ version }) => showLauncherUpdate(version));
   api.onLauncherProgress(showLauncherProgress);

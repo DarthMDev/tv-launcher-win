@@ -1,70 +1,121 @@
 #!/usr/bin/env python3
-"""Stage a built launcher file in release/ and print the manifest entry.
+"""Stage a built launcher in release/ and write the manifest entries.
 
-The update manifest cannot point at a build directory: every file it lists
-has to be a stable raw URL, which for us is this branch.  Copy the built
-artifact into release/ (commit it), then paste the printed --extra argument
-into the build_manifest.py call that publishes the manifest.
+The launcher updates itself from the same signed manifest the game uses: the
+manifest carries the launcher UI as a normal file
 
-    python tools/make_launcher_release.py dist/linux-unpacked/resources/app.asar
-    python tools/make_launcher_release.py dist/linux-unpacked/launcher --name Launcher.exe
+    Launcher/resources/app.asar.next   (swapped in on quit, asarSwap.js)
+
+and, on Windows, the launcher exe as the `launcher` entry (selfupdate.js).
+
+    python tools/make_launcher_release.py app.asar --exe Launcher.exe
+    # -> release/app.asar, release/Launcher.exe
+    # -> release/launcher-entries.json  (merge into the release manifest)
 """
 import argparse
 import hashlib
+import json
 import os
 import shutil
 import subprocess
 import sys
 
-BRANCH = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
-                        capture_output=True, text=True).stdout.strip() or 'main'
-RAW = 'https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/%s'
+RAW = 'https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/%s/release/%s'
+ASAR_INSTALL_PATH = 'Launcher/resources/app.asar.next'
 
 
-def sha256(path):
-    digest = hashlib.sha256()
+def branch(root):
+    try:
+        name = subprocess.run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'],
+                              cwd=root, capture_output=True, text=True).stdout
+        return name.strip() or 'main'
+    except Exception:
+        return 'main'
+
+
+def digest(path):
+    sha = hashlib.sha256()
     with open(path, 'rb') as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b''):
-            digest.update(chunk)
-    return digest.hexdigest()
+            sha.update(chunk)
+    return sha.hexdigest()
+
+
+def stage(root, source, name):
+    release = os.path.join(root, 'release')
+    os.makedirs(release, exist_ok=True)
+    target = os.path.join(release, name)
+    if os.path.abspath(target) != os.path.abspath(source):
+        shutil.copy2(source, target)
+    return target
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('artifact', help='built file, e.g. .../resources/app.asar')
-    parser.add_argument('--name', default=None,
-                        help='name inside release/ (default: the file name)')
-    parser.add_argument('--manifest-path', default=None,
-                        help='path the file is installed to '
-                             '(default: Launcher/resources/app.asar.next)')
-    parser.add_argument('--url-name', default=None,
-                        help='file name used in the URL (default: --name)')
+    parser.add_argument('asar', help='built resources/app.asar')
+    parser.add_argument('--exe', default=None,
+                        help='built launcher exe (Windows releases only)')
+    parser.add_argument('--exe-url', default=None,
+                        help='https URL the exe is published at (release asset)')
+    parser.add_argument('--exe-name', default='Launcher.exe',
+                        help="name used in the manifest for the exe")
+    parser.add_argument('--version', default=None,
+                        help='launcher version (default: src/package.json)')
+    parser.add_argument('-o', '--output', default=None,
+                        help='entries file (default: release/launcher-entries.json)')
     args = parser.parse_args()
 
-    if not os.path.isfile(args.artifact):
-        sys.exit('no such file: %s' % args.artifact)
-
-    name = args.name or os.path.basename(args.artifact)
-    url_name = args.url_name or name
-    if args.manifest_path is None:
-        args.manifest_path = ('Launcher/resources/app.asar.next'
-                              if name.endswith('.asar') else 'Launcher/' + name)
-
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    release = os.path.join(root, 'release')
-    os.makedirs(release, exist_ok=True)
-    target = os.path.join(release, name)
-    if os.path.abspath(target) != os.path.abspath(args.artifact):
-        shutil.copy2(args.artifact, target)
+    if not os.path.isfile(args.asar):
+        sys.exit('no such file: %s' % args.asar)
 
-    url = (RAW % BRANCH) + '/release/' + url_name
-    print('staged %s (%d bytes, sha256 %s)' % (target, os.path.getsize(target),
-                                               sha256(target)))
+    version = args.version
+    if not version:
+        version = json.load(open(os.path.join(root, 'src', 'package.json')))['version']
+
+    name = branch(root)
+    asar = stage(root, args.asar, 'app.asar')
+    entries = {
+        'version': version,
+        'branch': name,
+        'files': [{
+            'path': ASAR_INSTALL_PATH,
+            'size': os.path.getsize(asar),
+            'sha256': digest(asar),
+            'url': RAW % (name, 'app.asar'),
+        }],
+    }
+
+    if args.exe:
+        if not os.path.isfile(args.exe):
+            sys.exit('no such file: %s' % args.exe)
+        if not args.exe_url:
+            # a 100 MB+ exe does not belong in the branch: publish it as a
+            # release asset and pass the URL here
+            sys.exit('--exe needs --exe-url (the release asset URL)')
+        entries['launcher'] = {
+            'path': args.exe_name,
+            'size': os.path.getsize(args.exe),
+            'sha256': digest(args.exe),
+            'version': version,
+            'url': args.exe_url,
+        }
+        print('launcher exe: %s (%d bytes, published at %s)'
+              % (args.exe, os.path.getsize(args.exe), args.exe_url))
+
+    output = args.output or os.path.join(root, 'release', 'launcher-entries.json')
+    with open(output, 'w') as handle:
+        json.dump(entries, handle, indent=1)
+        handle.write('\n')
+
+    print('staged %s (%d bytes)' % (asar, os.path.getsize(asar)))
+    print('wrote %s' % output)
     print('')
-    print('--extra "%s|release/%s|%s"' % (args.manifest_path, url_name, url))
-    print('')
-    print('commit release/%s and publish the manifest with the key.' % url_name)
+    print('Merge it into the release manifest (server side, key required):')
+    print('  python build_manifest.py --src "<game folder>" --key <key> '
+          '--base <game raw base> --merge %s -o dl/manifest.json' % output)
+    return 0
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
