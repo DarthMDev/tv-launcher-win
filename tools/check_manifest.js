@@ -56,7 +56,8 @@ function main(argv) {
   const sigPath = flag('--sig');
   const key = flag('--key');
   if (sigPath && key) {
-    const signature = Buffer.from(fs.readFileSync(sigPath, 'utf8').trim(), 'base64');
+    // verifySignature takes the base64 text, not the decoded bytes
+    const signature = fs.readFileSync(sigPath, 'utf8').trim();
     try {
       verifySignature(bytes, signature, key);
       console.log('    signature    : valid');
