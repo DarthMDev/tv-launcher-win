@@ -452,11 +452,26 @@ function registerIpc() {
       game.hideCodeFolders(gameDir);
       const settings = config.get();
       const program = game.findGameProgram(gameDir, settings.pythonPath);
-      // a Windows client on Linux: pick a runner and make the prefix first
+      // a Windows client on Linux/macOS: pick a runner and make the prefix first
       let wineLaunch = null;
       if (program.wine) {
         try {
-          const runner = wine.findWine({ settings, dataDir: app.getPath('userData') });
+          let runner;
+          try {
+            runner = wine.findWine({ settings, dataDir: app.getPath('userData') });
+          } catch (err) {
+            if (err.code === 'wine-missing' && process.platform === 'darwin') {
+              send('game:event', { type: 'starting', detail: 'Downloading Wine runner' });
+              runner = await wine.downloadRunner({
+                dataDir: app.getPath('userData'),
+                url: config.get().wineRunnerMacUrl,
+                log: (text) => send('patcher:log', { text }),
+                progress: (pct) => send('game:event', { type: 'starting', detail: `Downloading Wine (${pct}%)` }),
+              });
+            } else {
+              throw err;
+            }
+          }
           const prefix = wine.resolvePrefix({
             settings,
             userDataDir: app.getPath('userData'),

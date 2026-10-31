@@ -711,7 +711,9 @@ function fillRuntimeSettings() {
   $('reset-game-folder').hidden = !settings.gameDir;
   $('wine-settings').hidden = !asksForWine;
   if (!asksForWine) return;
-  $('wine-help').textContent = settings.winePath || 'Automatic: system Wine, then Steam Proton, then a downloaded runner.';
+  $('wine-help').textContent = settings.winePath || (settings.platform === 'darwin'
+    ? 'Automatic: system Wine, then installed Wine apps, then a downloaded runner.'
+    : 'Automatic: system Wine, then Steam Proton, then a downloaded runner.');
   $('reset-wine').hidden = !settings.winePath;
   $('wine-prefix-help').textContent = settings.winePrefix || "Automatic: the prefix the game is installed in, else the launcher's own.";
   $('reset-wine-prefix').hidden = !settings.winePrefix;

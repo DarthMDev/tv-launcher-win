@@ -1,12 +1,12 @@
 {
  "version": "2.2.4",
- "branch": "linux",
+ "branch": "mac",
  "files": [
   {
    "path": "Launcher/resources/app.asar.next",
-   "size": 1344676,
-   "sha256": "691a4b5a4e900eb9f64f1678829360a10407f9cd0fb4936deaac308a2cd2b124",
-   "url": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/release/app.asar"
+   "size": 2130201,
+   "sha256": "874e57db53b0b0b4f9e57410a9e089d145106675a055c9ffb9d38579ffeee3e1",
+   "url": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/mac/release/app.asar"
   }
  ]
 }

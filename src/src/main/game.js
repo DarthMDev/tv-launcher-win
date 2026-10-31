@@ -54,6 +54,11 @@ function defaultGameDir({ packaged, appPath, execPath, resourcesPath, platform =
   if (!packaged) return path.resolve(appPath, '..');
   const exeDir = path.dirname(execPath);
   const candidates = [exeDir, path.dirname(exeDir), path.resolve(exeDir, '..', '..')];
+  if (platform === 'darwin') {
+    candidates.push(path.resolve(exeDir, '..', '..', '..'));
+    candidates.push(path.join(os.homedir(), 'Library', 'Application Support', 'Toon Valley'));
+    candidates.push(path.join(os.homedir(), 'Games', 'Toon Valley'));
+  }
   if (resourcesPath) candidates.unshift(path.join(resourcesPath, 'game'));
   // a game installed inside a Wine/Proton prefix (the usual Linux case)
   try {
