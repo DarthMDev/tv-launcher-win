@@ -92,10 +92,20 @@ function installDir({ platform = process.platform, exePath, localAppData, appDat
 }
 
 // The built game's executable in gameDir, or null for a checkout.
+// The stub is only usable with the CPython it loads (python313._pth and
+// runtime/python313.zip).  An install mid-update, or one published before
+// those files existed, still has the standalone ToonValley.exe, so fall back
+// to it instead of refusing to play.
+function stubRuntimePresent(gameDir) {
+  return STUB_REQUIRED_FILES.every(([file]) => fs.existsSync(path.join(gameDir, file)));
+}
+
 function gameExe(gameDir, platform = process.platform) {
   for (const name of GAME_EXE[platform] || ['ToonValley']) {
     const exe = path.join(gameDir, name);
-    if (fs.existsSync(exe)) return exe;
+    if (!fs.existsSync(exe)) continue;
+    if (name === STUB_EXE && !stubRuntimePresent(gameDir)) continue;
+    return exe;
   }
   return null;
 }
@@ -106,7 +116,10 @@ function checkGameFiles(gameDir, platform = process.platform) {
   }
   const exe = gameExe(gameDir, platform);
   let required = exe ? EXE_REQUIRED_FILES : REQUIRED_FILES;
-  if (exe && path.basename(exe) === STUB_EXE) required = EXE_REQUIRED_FILES.concat(STUB_REQUIRED_FILES);
+  if (!exe && fs.existsSync(path.join(gameDir, STUB_EXE))) {
+    // only the stub is there and it cannot run without its runtime
+    required = EXE_REQUIRED_FILES.concat(STUB_REQUIRED_FILES);
+  }
   const missing = required.filter(([file]) => !fs.existsSync(path.join(gameDir, file))).map(([, what]) => what);
   if (missing.length) {
     return {
