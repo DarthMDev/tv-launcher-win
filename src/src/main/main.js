@@ -618,13 +618,34 @@ app.whenReady().then(() => {
 // this one, ready for the next start.
 // A newer launcher app.asar downloaded as app.asar.next is swapped in once
 // this process is gone (see asarSwap.js).
-app.on('will-quit', () => {
+// A downloaded launcher app.asar is normally written next to this launcher
+// (Launcher/resources/app.asar.next, swapped in once we exit).  A launcher
+// that lives outside the game folder - the Linux build, or one unpacked
+// from the release zip - gets it inside the game folder instead, because
+// the patcher can only write there; move it across and swap it too.
+function finishAsarSwap(log) {
+  const swap = require('./asarSwap');
   try {
-    require('./asarSwap').finishOnExit(process.resourcesPath,
-      (line) => patcher && patcher.log(line));
+    if (swap.finishOnExit(process.resourcesPath, log)) return true;
   } catch (err) {
-    if (patcher) patcher.log(`launcher app.asar: ${err.message}`);
+    log(`launcher app.asar: ${err.message}`);
   }
+  try {
+    const resources = process.resourcesPath;
+    const staged = swap.pendingPath(path.join(getGameDir(), 'Launcher', 'resources'));
+    if (!fs.existsSync(staged)) return false;
+    const local = swap.pendingPath(resources);
+    if (!fs.existsSync(local)) fs.copyFileSync(staged, local);
+    fs.unlinkSync(staged);
+    log('launcher app.asar: pulled the downloaded one out of the game folder');
+    return swap.finishOnExit(resources, log);
+  } catch (err) {
+    log(`launcher app.asar: ${err.message}`);
+    return false;
+  }
+}
+app.on('will-quit', () => {
+  finishAsarSwap((line) => patcher && patcher.log(line));
 
   if (selfUpdater) {
     try {
@@ -638,12 +659,7 @@ app.on('will-quit', () => {
 app.on('window-all-closed', () => {
   // Swap a downloaded app.asar in as soon as the last window is gone; on
   // Wine and on hard window closes `will-quit` doesn't always run.
-  try {
-    require('./asarSwap').finishOnExit(process.resourcesPath,
-      (line) => patcher && patcher.log(line));
-  } catch (err) {
-    if (patcher) patcher.log(`launcher app.asar: ${err.message}`);
-  }
+  finishAsarSwap((line) => patcher && patcher.log(line));
   auth && auth.logout();
   if (patcher) patcher.cancel();
   // The game's output comes through a pipe to the launcher, so quitting now
