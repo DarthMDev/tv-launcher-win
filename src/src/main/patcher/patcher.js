@@ -627,10 +627,17 @@ class Patcher extends EventEmitter {
   // update server can't be reached; readyToPlay() then compares with it.
   async confirmLatest() {
     const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
     try {
       this.lastManifest = await this.fetchManifest(controller.signal);
     } catch (err) {
+      // fetchManifest already logs; a timeout just means 'try again later'
+      if (err && err.name === 'AbortError') {
+        throw new PatchError('unreachable', "Couldn't reach the update server in time. Try again.", true);
+      }
       throw toPatchError(err);
+    } finally {
+      clearTimeout(timeout);
     }
     return this.lastManifest;
   }

@@ -4,8 +4,8 @@
  "files": [
   {
    "path": "Launcher/resources/app.asar.next",
-   "size": 1344509,
-   "sha256": "1ec2fe640b672460f78f3af399bb60ec7ab7aef1338e07ef7509628029d0c2df",
+   "size": 1344676,
+   "sha256": "691a4b5a4e900eb9f64f1678829360a10407f9cd0fb4936deaac308a2cd2b124",
    "url": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/linux/release/app.asar"
   }
  ]
