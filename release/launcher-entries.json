@@ -4,15 +4,15 @@
  "files": [
   {
    "path": "Launcher/resources/app.asar.next",
-   "size": 1344509,
-   "sha256": "1ec2fe640b672460f78f3af399bb60ec7ab7aef1338e07ef7509628029d0c2df",
+   "size": 1344284,
+   "sha256": "53b31a7e400f7adab61a779d8f3f879bcf58411962ec900c2bcf19684374328e",
    "url": "https://raw.githubusercontent.com/tvtvalley/tv-launcher-win/windows/release/app.asar"
   }
  ],
  "launcher": {
   "path": "Launcher.exe",
   "size": 188874752,
-  "sha256": "5b59bd39e3cf2667f69acd5d31186971d47057a37cf1cd3c518310db8549f424",
+  "sha256": "b501085f24a7005e2098186dc80b2d1e0e2fa979c554678d767b5dd6b862645c",
   "version": "2.2.4",
   "url": "https://github.com/tvtvalley/tv-launcher-win/releases/download/v2.2.4/ToonValleyLauncher-2.2.4.exe"
  }
