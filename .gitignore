@@ -4,3 +4,6 @@ out/
 *.asar.orig
 *.orig
 .DS_Store
+__pycache__/
+*.pyc
+*.pyo
