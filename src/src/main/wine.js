@@ -24,7 +24,7 @@ const WINE_DLL_OVERRIDES =
   'd3dcompiler_47=n,b;ffmpeg=n,b;libEGL=n,b;libGLESv2=n,b;vk_swiftshader=n,b;vulkan-1=n,b;winhttp=n,b';
 
 // How long wineboot may take on a cold prefix.
-const WINEBOOT_TIMEOUT_MS = 180000;
+const WINEBOOT_TIMEOUT_MS = 15 * 60 * 1000;
 
 // A prefix only has to hold the game's registry and drive mapping; the Mono
 // and Gecko installers wineboot would otherwise run are what hang a Proton
@@ -209,29 +209,42 @@ function ensurePrefix(prefixDir, wine, { log = () => {}, timeoutMs = WINEBOOT_TI
       stdio: ['ignore', 'pipe', 'pipe'],
     });
     let stderr = '';
+    let settled = false;
+    const done = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve({ created: true, dir: prefixDir });
+    };
     child.stdout.on('data', (c) => { stderr += c.toString().slice(0, 4000); });
     child.stderr.on('data', (c) => { stderr += c.toString().slice(0, 4000); });
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      if (prefixReady(prefixDir)) {
+        log('wineboot is still finishing the prefix; starting anyway');
+        done(null);
+      } else {
+        done(new WineError('wineboot-failed', `Wine did not finish creating its prefix in ${Math.round(timeoutMs / 60000)} min.`));
+      }
+      try { child.kill('SIGKILL'); } catch { /* already gone */ }
     }, timeoutMs);
     child.on('error', (err) => {
-      clearTimeout(timer);
-      reject(new WineError('wineboot-failed', `The Wine prefix could not be created: ${err.message}`));
+      done(new WineError('wineboot-failed', `The Wine prefix could not be created: ${err.message}`));
     });
     child.on('exit', (code) => {
-      clearTimeout(timer);
-      if (code === 0 && prefixReady(prefixDir)) {
-        resolve({ created: true, dir: prefixDir });
+      if (code === 0 || prefixReady(prefixDir)) {
+        done(null);
         return;
       }
       const detail = stderr.trim().split('\n').slice(-3).join(' ').slice(0, 300);
-      reject(new WineError(
+      done(new WineError(
         'wineboot-failed',
         `Wine could not set up its prefix (exit ${code}).${detail ? ` ${detail}` : ''}`,
       ));
     });
   });
 }
+
 
 // Environment for a Wine launch (the game's own env is merged by the caller).
 function wineEnv(prefixDir, baseEnv = process.env) {
